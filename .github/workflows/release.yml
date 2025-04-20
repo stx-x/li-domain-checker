@@ -3,78 +3,110 @@ name: Release
 on:
   push:
     tags:
-      - 'v*'
-  workflow_dispatch: 
+      - 'v*' # 触发标签推送，例如 v1.0, v2.0.1
+  workflow_dispatch: # 允许手动触发
+
+# 设置 workflow 级别的权限
+permissions:
+  contents: write # 允许创建 Release 和上传附件
 
 env:
   CARGO_TERM_COLOR: always
+  # 定义项目名称，方便复用
+  PROJECT_NAME: li-domain-checker
 
 jobs:
   create-release:
     runs-on: ubuntu-latest
+    outputs: # 定义输出，以便其他 job 使用 upload_url
+      upload_url: ${{ steps.create_release.outputs.upload_url }}
     steps:
       - uses: actions/checkout@v4
       - name: Create Release
         id: create_release
         uses: actions/create-release@v1
         env:
-          GITHUB_TOKEN: ${{ secrets.TOKEN }}
+          # 这个 action 需要 GITHUB_TOKEN 在 env 上下文
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
-          tag_name: ${{ github.ref }}
-          release_name: Release ${{ github.ref }}
+          # 使用 github.ref_name 获取纯标签名，例如 v1.0.0
+          tag_name: ${{ github.ref_name }}
+          # 使用标签名作为 Release 名称
+          release_name: Release ${{ github.ref_name }}
           draft: false
-          prerelease: false
+          prerelease: false # 如果你的版本号可能包含 -rc, -beta 等，可以设置为 !contains(github.ref, '-')
 
   build-release:
-    needs: create-release
+    needs: create-release # 依赖 create-release job
     strategy:
       matrix:
         include:
           - os: ubuntu-latest
             target: x86_64-unknown-linux-gnu
-            suffix: ''
-            archive: tar.gz
+            bin_suffix: '' # Linux 不需要 .exe 后缀
+            archive_ext: tar.gz
+            archive_content_type: application/gzip
           - os: windows-latest
             target: x86_64-pc-windows-msvc
-            suffix: '.exe'
-            archive: zip
+            bin_suffix: '.exe' # Windows 需要 .exe 后缀
+            archive_ext: zip
+            archive_content_type: application/zip
           - os: macos-latest
             target: x86_64-apple-darwin
-            suffix: ''
-            archive: tar.gz
-          - os: macos-latest
+            bin_suffix: ''
+            archive_ext: tar.gz
+            archive_content_type: application/gzip
+          - os: macos-latest # 针对 Apple Silicon (ARM64)
             target: aarch64-apple-darwin
-            suffix: ''
-            archive: tar.gz
-    
+            bin_suffix: ''
+            archive_ext: tar.gz
+            archive_content_type: application/gzip
+
     runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v4
-      
-      - name: Install Rust
+
+      - name: Install Rust toolchain
         uses: dtolnay/rust-toolchain@stable
         with:
-          targets: ${{ matrix.target }}
+          targets: ${{ matrix.target }} # 安装对应的编译目标
 
-      - name: Build
-        run: cargo build --release --target ${{ matrix.target }}
+      - name: Build binary
+        # 使用 --locked 防止 Cargo.lock 意外更改
+        run: cargo build --verbose --release --target ${{ matrix.target }} --locked
 
-      - name: Prepare assets
-        shell: bash
+      - name: Prepare Artifacts
+        shell: bash # 强制使用 bash 以确保跨平台一致性
         run: |
+          # 进入编译好的 release 目录
           cd target/${{ matrix.target }}/release
-          if [ "${{ matrix.archive }}" = "zip" ]; then
-            zip ../../../li-domain-checker-${{ matrix.target }}.zip li-domain-checker${{ matrix.suffix }}
+
+          # 定义二进制文件名和压缩包名
+          BIN_NAME="${{ env.PROJECT_NAME }}${{ matrix.bin_suffix }}"
+          ARCHIVE_NAME="${{ env.PROJECT_NAME }}-${{ matrix.target }}.${{ matrix.archive_ext }}"
+
+          # 根据操作系统类型创建压缩包
+          if [ "${{ matrix.archive_ext }}" = "zip" ]; then
+            # Windows: 使用 zip
+            zip ../../../${ARCHIVE_NAME} "${BIN_NAME}"
           else
-            tar -czf ../../../li-domain-checker-${{ matrix.target }}.tar.gz li-domain-checker${{ matrix.suffix }}
+            # Linux/macOS: 使用 tar.gz
+            tar -czf ../../../${ARCHIVE_NAME} "${BIN_NAME}"
           fi
+
+          # 输出最终的压缩包路径，方便调试
+          echo "ASSET_PATH=./${ARCHIVE_NAME}" >> $GITHUB_ENV
+          echo "ASSET_NAME=${ARCHIVE_NAME}" >> $GITHUB_ENV
 
       - name: Upload Release Asset
         uses: actions/upload-release-asset@v1
         env:
+          # 这个 action 也需要在 env 上下文中使用 GITHUB_TOKEN
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
-          upload_url: ${{ needs.create_release.outputs.upload_url }}
-          asset_path: ./li-domain-checker-${{ matrix.target }}.${{ matrix.archive }}
-          asset_name: li-domain-checker-${{ matrix.target }}.${{ matrix.archive }}
-          asset_content_type: ${{ matrix.archive == 'zip' && 'application/zip' || 'application/gzip' }} 
+          # 从 needs 上下文获取 create-release job 的输出
+          upload_url: ${{ needs.create-release.outputs.upload_url }}
+          # 使用上一步输出的环境变量确定资源路径和名称
+          asset_path: ${{ env.ASSET_PATH }}
+          asset_name: ${{ env.ASSET_NAME }}
+          asset_content_type: ${{ matrix.archive_content_type }} # 使用 matrix 中定义的类型
