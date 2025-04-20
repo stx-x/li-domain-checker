@@ -36,7 +36,7 @@ cargo build --release
 
 基本用法：
 ```bash
-./target/release/li_domain_scanner
+./target/release/li-domain-checker
 ```
 
 参数说明：
@@ -49,16 +49,16 @@ cargo build --release
 示例：
 ```bash
 # 普通模式（扫描1-3字符域名和重复模式域名）
-./target/release/li_domain_scanner
+./target/release/li-domain-checker
 
 # 4字符全扫描模式
-./target/release/li_domain_scanner --full-scan
+./target/release/li-domain-checker --full-scan
 
 # 4字符纯字母扫描模式
-./target/release/li_domain_scanner --letters-only
+./target/release/li-domain-checker --letters-only
 
 # 组合使用
-./target/release/li_domain_scanner -w 100 -d 0.5 -o my_results --full-scan --letters-only
+./target/release/li-domain-checker -w 100 -d 0.5 -o my_results --full-scan --letters-only
 ```
 
 ## 扫描模式说明
