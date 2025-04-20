@@ -11,7 +11,7 @@ use std::{
     time::Duration,
 };
 use tokio::{
-    io::{AsyncBufReadExt, AsyncReadExt, AsyncWriteExt, BufReader},
+    io::{AsyncReadExt, AsyncWriteExt, BufReader},
     net::TcpStream,
     sync::Semaphore,
     time::sleep,
@@ -68,15 +68,6 @@ impl DomainStatus {
             0 => Self::Registered,
             -95 => Self::RateLimited,
             _ => Self::Error,
-        }
-    }
-
-    fn as_str(&self) -> &'static str {
-        match self {
-            Self::Available => "available",
-            Self::Registered => "registered",
-            Self::RateLimited => "rate_limited",
-            Self::Error => "error",
         }
     }
 }
