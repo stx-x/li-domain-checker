@@ -1,0 +1,79 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  create-release:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Create Release
+        id: create_release
+        uses: actions/create-release@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          tag_name: ${{ github.ref }}
+          release_name: Release ${{ github.ref }}
+          draft: false
+          prerelease: false
+
+  build-release:
+    needs: create-release
+    strategy:
+      matrix:
+        include:
+          - os: ubuntu-latest
+            target: x86_64-unknown-linux-gnu
+            suffix: ''
+            archive: tar.gz
+          - os: windows-latest
+            target: x86_64-pc-windows-msvc
+            suffix: '.exe'
+            archive: zip
+          - os: macos-latest
+            target: x86_64-apple-darwin
+            suffix: ''
+            archive: tar.gz
+          - os: macos-latest
+            target: aarch64-apple-darwin
+            suffix: ''
+            archive: tar.gz
+    
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.target }}
+
+      - name: Build
+        run: cargo build --release --target ${{ matrix.target }}
+
+      - name: Prepare assets
+        shell: bash
+        run: |
+          cd target/${{ matrix.target }}/release
+          if [ "${{ matrix.archive }}" = "zip" ]; then
+            zip ../../../li-domain-checker-${{ matrix.target }}.zip li-domain-checker${{ matrix.suffix }}
+          else
+            tar -czf ../../../li-domain-checker-${{ matrix.target }}.tar.gz li-domain-checker${{ matrix.suffix }}
+          fi
+
+      - name: Upload Release Asset
+        uses: actions/upload-release-asset@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          upload_url: ${{ needs.create_release.outputs.upload_url }}
+          asset_path: ./li-domain-checker-${{ matrix.target }}.${{ matrix.archive }}
+          asset_name: li-domain-checker-${{ matrix.target }}.${{ matrix.archive }}
+          asset_content_type: ${{ matrix.archive == 'zip' && 'application/zip' || 'application/gzip' }} 

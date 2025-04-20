@@ -40,6 +40,10 @@ struct Args {
     /// 是否扫描4字符纯字母域名
     #[arg(short, long)]
     letters_only: bool,
+
+    /// 跳过运行时间提示
+    #[arg(short = 'y', long)]
+    skip_warning: bool,
 }
 
 /// 域名扫描结果
@@ -363,6 +367,20 @@ impl Clone for LiDomainScanner {
 #[tokio::main]
 async fn main() -> Result<()> {
     let args = Args::parse();
+    
+    if !args.skip_warning {
+        // 添加运行时间提示
+        println!("{}", style("\n⚠️  注意：扫描可能需要较长时间").yellow().bold());
+        println!("建议使用以下方法之一来防止程序意外中断：");
+        println!("1. 使用 tmux (推荐)");
+        println!("2. 使用 nohup: nohup li-domain-checker [参数] > scan.log 2>&1 &");
+        println!("3. 使用 screen\n");
+        
+        println!("按回车键继续...");
+        let mut input = String::new();
+        std::io::stdin().read_line(&mut input)?;
+    }
+
     let scanner = LiDomainScanner::new(args.workers, args.delay, args.output)?;
     scanner.run(args.full_scan, args.letters_only).await
 }
