@@ -23,8 +23,8 @@
 
 1. 克隆仓库：
 ```bash
-git clone https://github.com/yourusername/li_domain_scanner.git
-cd li_domain_scanner
+git clone https://github.com/stx-x/li-domain-checker.git
+cd li-domain-checker
 ```
 
 2. 编译项目：

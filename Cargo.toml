@@ -1,5 +1,5 @@
 [package]
-name = "li_domain_scanner"
+name = "li-domain-checker"
 version = "0.1.0"
 edition = "2021"
 
